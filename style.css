@@ -1,0 +1,14 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 420px;
+  margin: auto;
+  padding: 16px;
+  text-align: center;
+}
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  font-size: 16px;
+}
