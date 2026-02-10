@@ -1,20 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Moon Calendar</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="style.css">
-</head>
 <body>
+  <h1>🕉 Tithi Calendar</h1>
 
-  <h1> Moon Calendar</h1>
+  <div class="nav">
+    <button id="prev">◀</button>
+    <h2 id="monthYear"></h2>
+    <button id="next">▶</button>
+  </div>
 
-  <input type="date" id="datePicker">
-  <button id="btn">Get Tithi</button>
-
-  <div id="result"></div>
+  <div class="calendar">
+    <div class="day-name">Sun</div>
+    <div class="day-name">Mon</div>
+    <div class="day-name">Tue</div>
+    <div class="day-name">Wed</div>
+    <div class="day-name">Thu</div>
+    <div class="day-name">Fri</div>
+    <div class="day-name">Sat</div>
+  </div>
 
   <script src="script.js"></script>
+  <link rel="stylesheet" href="style.css">
 </body>
-</html>

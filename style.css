@@ -2,13 +2,54 @@ body {
   font-family: system-ui, sans-serif;
   max-width: 420px;
   margin: auto;
-  padding: 16px;
+  padding: 12px;
+}
+
+h1 {
   text-align: center;
 }
 
-input, button {
-  width: 100%;
-  padding: 12px;
-  margin: 8px 0;
-  font-size: 16px;
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.day-name {
+  text-align: center;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.day {
+  border: 1px solid #ddd;
+  min-height: 60px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.date {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.tithi {
+  font-size: 10px;
+  color: #555;
+}
+.tithi:contains("Purnima") {
+  color: #d97706;
+  font-weight: bold;
+}
+
+.tithi:contains("Amavasya") {
+  color: #1f2937;
+  font-weight: bold;
 }
