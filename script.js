@@ -13,38 +13,101 @@ const monthYear = document.getElementById("monthYear");
 let currentDate = new Date();
 
 function renderCalendar() {
-  calendar.querySelectorAll(".day").forEach(d => d.remove());
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  const shuklaContainer = document.getElementById("shuklaContainer");
+  const krishnaContainer = document.getElementById("krishnaContainer");
 
-  monthYear.textContent = currentDate.toLocaleString("default", {
-    month: "long",
-    year: "numeric"
-  });
+  shuklaContainer.innerHTML = "";
+  krishnaContainer.innerHTML = "";
 
-  const firstDay = new Date(year, month, 1).getDay();
+  const today = new Date();
+  const todayDate = today.getDate();
+
+  const year = today.getFullYear();
+  const month = today.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // empty cells before month starts
-  for (let i = 0; i < firstDay; i++) {
-    calendar.insertAdjacentHTML("beforeend", `<div class="day"></div>`);
+  for (let day = 1; day <= 30; day++) {
+
+    const tithiName = TITHIS[day - 1];
+    const solarDate = day <= daysInMonth ? day : "";
+
+    const isToday = solarDate === todayDate;
+
+    const card = `
+      <div class="day ${isToday ? "today" : ""}">
+        <div class="tithi-primary">${tithiName}</div>
+        <div class="solar-date">${solarDate}</div>
+      </div>
+    `;
+
+    if (day <= 15) {
+      shuklaContainer.insertAdjacentHTML("beforeend", card);
+    } else {
+      krishnaContainer.insertAdjacentHTML("beforeend", card);
+    }
+  }
+}
+
+renderCalendar();
+
+
+let locationsData = {};
+
+fetch("locations.json")
+  .then(res => res.json())
+  .then(data => {
+    locationsData = data;
+    populateCountries();
+  });
+
+function populateCountries() {
+  const countrySelect = document.getElementById("countrySelect");
+
+  Object.keys(locationsData).forEach(country => {
+    const option = document.createElement("option");
+    option.value = country;
+    option.textContent = country;
+    countrySelect.appendChild(option);
+  });
+}
+
+document.getElementById("countrySelect").addEventListener("change", function() {
+  const selectedCountry = this.value;
+  const citySelect = document.getElementById("citySelect");
+
+  citySelect.innerHTML = '<option value="">Select City</option>';
+
+  if (!selectedCountry) {
+    citySelect.disabled = true;
+    return;
   }
 
-  // actual days
-  for (let day = 1; day <= daysInMonth; day++) {
-  const tithiIndex = (day - 1) % 30;
-  const tithiName = TITHIS[tithiIndex];
+  locationsData[selectedCountry].forEach(city => {
+    const option = document.createElement("option");
+    option.value = JSON.stringify(city);
+    option.textContent = city.name;
+    citySelect.appendChild(option);
+  });
 
-  calendar.insertAdjacentHTML("beforeend", `
-    <div class="day">
-      <div class="date">${day}</div>
-      <div class="tithi">${tithiName}</div>
-    </div>
-  `);
-}
+  citySelect.disabled = false;
+});
 
-}
+document.getElementById("citySelect").addEventListener("change", function() {
+  const cityData = JSON.parse(this.value);
+
+  localStorage.setItem("userLocation", JSON.stringify(cityData));
+
+  console.log("Selected Location:", cityData);
+});
+
+const locations = JSON.parse(localStorage.getItem("userLocation"));
+const lat = locations.lat;
+const lon = locations.lon;
+
+
+renderCalendar();
+
 
 document.getElementById("prev").onclick = () => {
   currentDate.setMonth(currentDate.getMonth() - 1);
