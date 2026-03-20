@@ -7,7 +7,10 @@ export function findLunarMonthStart(referenceDay, config) {
     const candidateTithi = getTithiAtSunrise(candidate, config);
     const previousTithi = getTithiAtSunrise(addLocalDays(candidate, -1), config);
 
-    if (candidateTithi.index === 1 && previousTithi.index !== 1) {
+    if (
+      candidateTithi.paksha === "Shukla" &&
+      previousTithi.paksha === "Krishna"
+    ) {
       return candidate;
     }
   }
@@ -21,7 +24,10 @@ export function findNextLunarMonthStart(referenceDay, config) {
     const candidateTithi = getTithiAtSunrise(candidate, config);
     const previousTithi = getTithiAtSunrise(addLocalDays(candidate, -1), config);
 
-    if (candidateTithi.index === 1 && previousTithi.index !== 1) {
+    if (
+      candidateTithi.paksha === "Shukla" &&
+      previousTithi.paksha === "Krishna"
+    ) {
       return candidate;
     }
   }

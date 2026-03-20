@@ -4,9 +4,14 @@ import {
   DEFAULT_LOCATION,
   STORAGE_KEYS
 } from "./constants.js";
+import {
+  safeStorageGet,
+  safeStorageRemove,
+  safeStorageSet
+} from "./storage.js";
 
 export function loadSavedLocation() {
-  const savedLocation = localStorage.getItem(STORAGE_KEYS.location);
+  const savedLocation = safeStorageGet(STORAGE_KEYS.location);
 
   if (!savedLocation) {
     return null;
@@ -16,17 +21,17 @@ export function loadSavedLocation() {
     return JSON.parse(savedLocation);
   } catch (error) {
     console.error("Unable to parse saved location:", error);
-    localStorage.removeItem(STORAGE_KEYS.location);
+    safeStorageRemove(STORAGE_KEYS.location);
     return null;
   }
 }
 
 export function saveLocation(location) {
-  localStorage.setItem(STORAGE_KEYS.location, JSON.stringify(location));
+  safeStorageSet(STORAGE_KEYS.location, JSON.stringify(location));
 }
 
 export function clearSavedLocation() {
-  localStorage.removeItem(STORAGE_KEYS.location);
+  safeStorageRemove(STORAGE_KEYS.location);
 }
 
 export function getLocationConfig(location, locationsData) {
@@ -103,6 +108,6 @@ export function restoreSavedLocation(countrySelect, citySelect, selectedLocation
 }
 
 export async function loadLocationsData() {
-  const response = await fetch("locations.json");
+  const response = await fetch("/api/locations");
   return response.json();
 }

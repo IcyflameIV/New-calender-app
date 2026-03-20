@@ -2,11 +2,16 @@ import {
   DEFAULT_PERIOD_TRACKER,
   STORAGE_KEYS
 } from "./constants.js";
-import { getLocalDayKey, parseLocalDayKey } from "./date-utils.js";
-import { findNextLunarMonthStart } from "./astronomy.js";
+import { addLocalDays, getLocalDayKey } from "./date-utils.js";
+import { getTithiAtSunrise } from "./astronomy.js";
+import {
+  safeStorageGet,
+  safeStorageRemove,
+  safeStorageSet
+} from "./storage.js";
 
 export function loadPeriodTracker() {
-  const savedTracker = localStorage.getItem(STORAGE_KEYS.periodTracker);
+  const savedTracker = safeStorageGet(STORAGE_KEYS.periodTracker);
 
   if (!savedTracker) {
     return { ...DEFAULT_PERIOD_TRACKER };
@@ -14,59 +19,104 @@ export function loadPeriodTracker() {
 
   try {
     const parsed = JSON.parse(savedTracker);
+    const history = Object.fromEntries(
+      Object.entries(parsed.history || {}).map(([monthKey, value]) => [
+        monthKey,
+        Array.isArray(value) ? value : value ? [value] : []
+      ])
+    );
     return {
       ...DEFAULT_PERIOD_TRACKER,
       ...parsed,
-      history: parsed.history || {}
+      history
     };
   } catch (error) {
     console.error("Unable to parse period tracker data:", error);
-    localStorage.removeItem(STORAGE_KEYS.periodTracker);
+    safeStorageRemove(STORAGE_KEYS.periodTracker);
     return { ...DEFAULT_PERIOD_TRACKER };
   }
 }
 
 export function persistPeriodTracker(periodTracker) {
-  localStorage.setItem(STORAGE_KEYS.periodTracker, JSON.stringify(periodTracker));
+  safeStorageSet(STORAGE_KEYS.periodTracker, JSON.stringify(periodTracker));
 }
 
-export function getExpectedRecordForMonth(periodTracker, monthStart, config) {
-  const basis = periodTracker.latestRecord || periodTracker.referenceRecord;
+export function getExpectedRecordsForMonth(periodTracker, monthStart, monthEnd, config) {
+  const basis = periodTracker.latestRecord;
 
-  if (!basis) {
-    return null;
+  if (!basis?.tithiIndex) {
+    return [];
   }
 
-  const basisMonthStart = parseLocalDayKey(basis.monthKey);
-  const nextMonthStart = findNextLunarMonthStart(basisMonthStart, config);
+  let fallbackRecord = null;
 
-  if (getLocalDayKey(nextMonthStart) !== getLocalDayKey(monthStart)) {
-    return null;
+  for (let offset = 0; ; offset += 1) {
+    const localDay = addLocalDays(monthStart, offset);
+
+    if (Date.UTC(localDay.year, localDay.month - 1, localDay.day) >
+      Date.UTC(monthEnd.year, monthEnd.month - 1, monthEnd.day)) {
+      break;
+    }
+
+    const tithi = getTithiAtSunrise(localDay, config);
+
+    if (tithi.index === basis.tithiIndex) {
+      return [{
+        dayKey: getLocalDayKey(localDay),
+        tithiIndex: tithi.index,
+        tithiName: tithi.name,
+        source: "latest"
+      }];
+    }
+
+    if (!fallbackRecord && tithi.index > basis.tithiIndex) {
+      fallbackRecord = {
+        dayKey: getLocalDayKey(localDay),
+        tithiIndex: tithi.index,
+        tithiName: tithi.name,
+        source: "latest"
+      };
+    }
   }
 
-  return {
-    ...basis,
-    source: periodTracker.latestRecord ? "latest" : "reference"
-  };
+  return fallbackRecord ? [fallbackRecord] : [];
 }
 
-export function savePeriodStart(periodTracker, monthKey, tithiIndex, tithiName, solarLabel) {
-  const record = { monthKey, tithiIndex, tithiName, solarLabel };
-  periodTracker.history[monthKey] = record;
+export function savePeriodStart(periodTracker, monthKey, tithiIndex, tithiName, solarLabel, dayKey) {
+  const record = { monthKey, tithiIndex, tithiName, solarLabel, dayKey };
+  const monthHistory = periodTracker.history[monthKey] || [];
+  const existingIndex = monthHistory.findIndex((entry) => entry.dayKey === dayKey);
+
+  if (existingIndex >= 0) {
+    monthHistory[existingIndex] = record;
+  } else {
+    monthHistory.push(record);
+    monthHistory.sort((left, right) => left.dayKey.localeCompare(right.dayKey));
+  }
+
+  periodTracker.history[monthKey] = monthHistory;
   periodTracker.latestRecord = record;
   persistPeriodTracker(periodTracker);
 }
 
-export function saveReferenceRecord(periodTracker, currentRecord) {
-  if (!currentRecord) {
-    return;
+export function removePeriodStart(periodTracker, monthKey, dayKey) {
+  const monthHistory = (periodTracker.history[monthKey] || []).filter(
+    (entry) => entry.dayKey !== dayKey
+  );
+
+  if (monthHistory.length > 0) {
+    periodTracker.history[monthKey] = monthHistory;
+  } else {
+    delete periodTracker.history[monthKey];
   }
 
-  periodTracker.referenceRecord = { ...currentRecord };
+  periodTracker.latestRecord = getLatestRecord(periodTracker.history);
   persistPeriodTracker(periodTracker);
 }
 
-export function resetReferenceRecord(periodTracker) {
-  periodTracker.referenceRecord = null;
-  persistPeriodTracker(periodTracker);
+function getLatestRecord(history) {
+  return Object.values(history)
+    .flat()
+    .sort((left, right) => left.dayKey.localeCompare(right.dayKey))
+    .at(-1) || null;
 }

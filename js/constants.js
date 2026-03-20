@@ -82,6 +82,5 @@ export const DEFAULT_THEME = "soft-romantic";
 export const DEFAULT_PERIOD_TRACKER = {
   enabled: false,
   latestRecord: null,
-  referenceRecord: null,
   history: {}
 };

@@ -4,65 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tithi Calendar</title>
-  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <select id="countrySelect">
-    <option value="">Select Country</option>
-  </select>
-
-  <select id="citySelect" disabled>
-    <option value="">Select City</option>
-  </select>
-
-  <label class="theme-control" for="themeSelect">
-    <span>Theme</span>
-    <select id="themeSelect">
-      <option value="soft-romantic">Soft Romantic</option>
-      <option value="natural-whimsical">Natural Whimsical</option>
-      <option value="clean-minimal">Clean Minimal</option>
-      <option value="dark-feminine">Dark Feminine</option>
-    </select>
-  </label>
-
-  <h1>🕉 Tithi Calendar</h1>
-
-  <div class="nav">
-    <button id="prev" type="button">◀</button>
-    <div id="monthYear" class="month-year" aria-live="polite"></div>
-    <button id="next" type="button">▶</button>
-  </div>
-
-  <section class="tracker-panel">
-    <div class="tracker-head">
-      <div>
-        <h2>Period Tracking</h2>
-        <p>Turn this on to mark the tithi when the period starts and see the expected tithi next lunar month.</p>
-      </div>
-      <label class="toggle">
-        <input id="trackingToggle" type="checkbox">
-        <span class="toggle-label">Off</span>
-      </label>
-    </div>
-
-    <div class="tracker-actions">
-      <button id="saveReference" type="button">Save Current Start as Reference</button>
-      <button id="resetReference" type="button">Reset Reference</button>
-    </div>
-
-    <div id="trackerStatus" class="tracker-status" aria-live="polite"></div>
-  </section>
-
-  <div class="paksha-section">
-    <h2 class="paksha-title shukla">Shukla Paksha 🌔</h2>
-    <div id="shuklaContainer" class="lunar-grid"></div>
-  </div>
-
-  <div class="paksha-section">
-    <h2 class="paksha-title krishna">Krishna Paksha 🌘</h2>
-    <div id="krishnaContainer" class="lunar-grid"></div>
-  </div>
-
-  <script type="module" src="script.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
