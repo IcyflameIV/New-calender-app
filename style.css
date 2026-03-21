@@ -513,12 +513,22 @@ body[data-theme="natural-whimsical"] .paksha-section::after {
 .month-year {
   flex: 1;
   text-align: center;
+  display: grid;
+  gap: 4px;
   font-family: var(--body-font);
+  color: var(--muted-ink);
+}
+
+.month-year-title {
   font-size: 0.92rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted-ink);
+}
+
+.month-year-range {
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
 }
 
 .theme-control {
@@ -593,9 +603,16 @@ body[data-theme="natural-whimsical"] .paksha-section::after {
   margin: 0;
 }
 
+.tracker-error {
+  margin: 0;
+  color: var(--strong);
+  font-size: 0.9rem;
+}
+
 #countrySelect,
 #citySelect,
 #themeSelect,
+#labelModeSelect,
 .reference-date-input {
   width: 100%;
   max-width: 320px;
@@ -644,7 +661,8 @@ body[data-theme="natural-whimsical"] .paksha-section::after {
   border-radius: var(--card-radius);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  align-items: center;
   background: var(--card-bg);
   box-shadow: var(--card-shadow);
   transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.3s ease;
@@ -675,6 +693,16 @@ body[data-theme="natural-whimsical"] .today::before {
   justify-content: flex-end;
   gap: 6px;
   min-height: 22px;
+}
+
+.day-corner {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
 }
 
 .day-badge {
@@ -711,17 +739,33 @@ body[data-theme="natural-whimsical"] .today::before {
   position: relative;
   z-index: 1;
   font-family: var(--heading-font);
-  font-size: 1.18rem;
+  font-size: 1.28rem;
   line-height: 1.1;
   font-weight: 500;
   color: var(--page-ink);
 }
 
-.solar-date {
+.tithi-label {
   position: relative;
   z-index: 1;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  text-align: center;
+}
+
+.tithi-phase-icon {
+  font-size: 1.08rem;
+  line-height: 1;
+}
+
+.solar-date {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1;
   font-family: var(--body-font);
-  font-size: 0.66rem;
+  font-size: 0.74rem;
   font-weight: 400;
   letter-spacing: normal;
   text-transform: none;
@@ -730,11 +774,31 @@ body[data-theme="natural-whimsical"] .today::before {
   text-align: right;
 }
 
+.weekday-label {
+  position: absolute;
+  right: 12px;
+  bottom: 28px;
+  z-index: 1;
+  font-family: var(--body-font);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: inherit;
+  opacity: 0.58;
+  text-align: right;
+}
+
 body[data-theme="clean-minimal"] .solar-date {
   font-family: var(--body-font);
   letter-spacing: 2px;
   text-transform: uppercase;
   opacity: 0.56;
+}
+
+body[data-theme="clean-minimal"] .weekday-label {
+  letter-spacing: 2px;
+  opacity: 0.62;
 }
 
 .track-button.selected {

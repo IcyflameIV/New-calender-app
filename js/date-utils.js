@@ -100,3 +100,10 @@ export function parseLocalDayKey(key) {
   const [year, month, day] = key.split("-").map(Number);
   return { year, month, day };
 }
+
+export function compareLocalDays(left, right) {
+  return (
+    Date.UTC(left.year, left.month - 1, left.day) -
+    Date.UTC(right.year, right.month - 1, right.day)
+  );
+}

@@ -7,7 +7,6 @@ import {
 import {
   addLocalDays,
   formatLocalMonthDay,
-  formatLunarMonthLabel,
   getDateFromLocalParts,
   getLocalDateParts,
   getLocalDayKey,
@@ -18,6 +17,7 @@ import {
   findNextLunarMonthStart,
   getTithiAtSunrise
 } from "../js/astronomy.js";
+import { getMonthHeader } from "../js/newari-months.js";
 import {
   clearSavedLocation,
   findCountryByCity,
@@ -31,6 +31,7 @@ import {
   loadPeriodTracker,
   persistPeriodTracker,
   removePeriodStart,
+  saveExpectedHistory,
   savePeriodStart,
 } from "../js/period-tracking.js";
 import {
@@ -38,12 +39,105 @@ import {
   safeStorageSet
 } from "../js/storage.js";
 
+const LABEL_MODES = {
+  traditional: "traditional",
+  english: "english"
+};
+
+const PHASE_LABELS = {
+  waxingCrescent: "🌒",
+  firstQuarter: "🌓",
+  waxingGibbous: "🌔",
+  waningGibbous: "🌖",
+  lastQuarter: "🌗",
+  waningCrescent: "🌘"
+};
+
+function getEnglishTithiLabel(tithiIndex) {
+  if (tithiIndex === 15) {
+    return {
+      primary: "Full Moon",
+      secondary: ""
+    };
+  }
+
+  if (tithiIndex === 30) {
+    return {
+      primary: "New Moon",
+      secondary: ""
+    };
+  }
+
+  const pakshaDay = tithiIndex <= 15 ? tithiIndex : tithiIndex - 15;
+
+  if (tithiIndex <= 5) {
+    return { primary: String(pakshaDay), secondary: PHASE_LABELS.waxingCrescent };
+  }
+
+  if (tithiIndex <= 8) {
+    return { primary: String(pakshaDay), secondary: PHASE_LABELS.firstQuarter };
+  }
+
+  if (tithiIndex <= 14) {
+    return { primary: String(pakshaDay), secondary: PHASE_LABELS.waxingGibbous };
+  }
+
+  if (tithiIndex <= 21) {
+    return { primary: String(pakshaDay), secondary: PHASE_LABELS.waningGibbous };
+  }
+
+  if (tithiIndex <= 24) {
+    return { primary: String(pakshaDay), secondary: PHASE_LABELS.lastQuarter };
+  }
+
+  return { primary: String(pakshaDay), secondary: PHASE_LABELS.waningCrescent };
+}
+
+function getTithiDisplayLabel(tithiIndex, tithiName, labelMode) {
+  if (labelMode === LABEL_MODES.english) {
+    return getEnglishTithiLabel(tithiIndex);
+  }
+
+  return {
+    primary: tithiName,
+    secondary: ""
+  };
+}
+
+function formatTithiText(tithiIndex, tithiName, labelMode) {
+  const label = getTithiDisplayLabel(tithiIndex, tithiName, labelMode);
+  return label.secondary ? `${label.primary} (${label.secondary})` : label.primary;
+}
+
+function formatLocalWeekday(localDay, timeZone) {
+  return getDateFromLocalParts(localDay.year, localDay.month, localDay.day, 12, 0, timeZone)
+    .toLocaleDateString(undefined, {
+      timeZone,
+      weekday: "short"
+    });
+}
+
+function getPakshaTitle(paksha, labelMode) {
+  if (labelMode === LABEL_MODES.english) {
+    return paksha === "Shukla" ? "Waxing 🌔" : "Waning 🌘";
+  }
+
+  return paksha === "Shukla" ? "Shukla Paksha 🌔" : "Krishna Paksha 🌘";
+}
+
 function clonePeriodTracker(periodTracker) {
   return {
     ...periodTracker,
     latestRecord: periodTracker.latestRecord ? { ...periodTracker.latestRecord } : null,
+    referenceRecord: periodTracker.referenceRecord ? { ...periodTracker.referenceRecord } : null,
     history: Object.fromEntries(
       Object.entries(periodTracker.history).map(([monthKey, records]) => [
+        monthKey,
+        Array.isArray(records) ? records.map((record) => ({ ...record })) : []
+      ])
+    ),
+    expectedHistory: Object.fromEntries(
+      Object.entries(periodTracker.expectedHistory || {}).map(([monthKey, records]) => [
         monthKey,
         Array.isArray(records) ? records.map((record) => ({ ...record })) : []
       ])
@@ -65,13 +159,28 @@ function buildCalendarData(currentDate, selectedLocation, locationsData, periodT
     ) / 86400000
   );
   const monthKey = getLocalDayKey(lunarMonthStart);
+  const monthHeader = getMonthHeader(lunarMonthStart, lunarMonthEnd, config.timeZone, config);
   const currentRecords = periodTracker.history[monthKey] || [];
-  const expectedRecords = getExpectedRecordsForMonth(
+  const projectedExpectedRecords = getExpectedRecordsForMonth(
     periodTracker,
     lunarMonthStart,
     lunarMonthEnd,
     config
   );
+  const savedExpectedRecords = periodTracker.expectedHistory?.[monthKey] || [];
+  const latestReferenceMonthKey =
+    periodTracker.latestRecord?.monthKey || periodTracker.referenceRecord?.monthKey || null;
+  let expectedRecords = [];
+
+  if (latestReferenceMonthKey && monthKey <= latestReferenceMonthKey) {
+    // Historical or current reference month: preserve only what was already shown there.
+    expectedRecords = [...savedExpectedRecords];
+  } else {
+    // Future months should always follow the latest reference only.
+    expectedRecords = [...projectedExpectedRecords];
+  }
+
+  expectedRecords.sort((left, right) => left.dayKey.localeCompare(right.dayKey));
   const loggedDayKeys = new Set(currentRecords.map((record) => record.dayKey));
   const expectedDayKeys = new Set(expectedRecords.map((record) => record.dayKey));
   const shuklaDays = [];
@@ -81,6 +190,7 @@ function buildCalendarData(currentDate, selectedLocation, locationsData, periodT
     const localDay = addLocalDays(lunarMonthStart, offset);
     const tithi = getTithiAtSunrise(localDay, config);
     const solarLabel = formatLocalMonthDay(localDay, config.timeZone);
+    const weekdayLabel = formatLocalWeekday(localDay, config.timeZone);
     const dayKey = getLocalDayKey(localDay);
     const isToday =
       localDay.year === actualTodayLocal.year &&
@@ -93,6 +203,7 @@ function buildCalendarData(currentDate, selectedLocation, locationsData, periodT
       localDay,
       dayKey,
       tithi,
+      weekdayLabel,
       solarLabel,
       isToday,
       isLoggedStart,
@@ -116,29 +227,51 @@ function buildCalendarData(currentDate, selectedLocation, locationsData, periodT
       ...expectedRecord,
       solarLabel: formatLocalMonthDay(parseLocalDayKey(expectedRecord.dayKey), config.timeZone)
     })),
-    monthLabel: formatLunarMonthLabel(lunarMonthStart, lunarMonthEnd, config.timeZone),
+    monthLabel: monthHeader.title,
+    monthSubLabel: monthHeader.subtitle,
     shuklaDays,
     krishnaDays
   };
 }
 
-function DayCard({ day, trackingEnabled, monthKey, onTrackPeriod, onUntrackPeriod }) {
+function DayCard({
+  day,
+  trackingEnabled,
+  markDateEnabled,
+  monthKey,
+  labelMode,
+  onTrackPeriod
+}) {
+  const tithiLabel = getTithiDisplayLabel(day.tithi.index, day.tithi.name, labelMode);
+
   return (
     <div
       className={[
         "day",
         day.isToday ? "today" : "",
-        day.isLoggedStart ? "period-start" : "",
-        day.isExpectedStart ? "expected-start" : ""
+        trackingEnabled && day.isLoggedStart ? "period-start" : "",
+        trackingEnabled && day.isExpectedStart ? "expected-start" : ""
       ].filter(Boolean).join(" ")}
     >
-      <div className="day-badges">
-        {day.isExpectedStart ? <span className="day-badge expected">Expected</span> : null}
-        {day.isLoggedStart ? <span className="day-badge actual">🩸</span> : null}
+      <div className="day-corner">
+        <div className="day-badges">
+          {trackingEnabled && day.isExpectedStart ? (
+            <span className="day-badge expected">Expected</span>
+          ) : null}
+          {trackingEnabled && day.isLoggedStart ? (
+            <span className="day-badge actual">🩸</span>
+          ) : null}
+        </div>
+        {tithiLabel.secondary ? (
+          <div className="tithi-phase-icon" aria-hidden="true">{tithiLabel.secondary}</div>
+        ) : null}
       </div>
-      <div className="tithi-primary">{day.tithi.name}</div>
+      <div className="tithi-label">
+        <div className="tithi-primary">{tithiLabel.primary}</div>
+      </div>
+      <div className="weekday-label">{day.weekdayLabel}</div>
       <div className="solar-date">{day.solarLabel}</div>
-      {trackingEnabled ? (
+      {trackingEnabled && markDateEnabled ? (
         <button
           className={`track-button ${day.isLoggedStart ? "selected" : ""}`}
           type="button"
@@ -151,15 +284,7 @@ function DayCard({ day, trackingEnabled, monthKey, onTrackPeriod, onUntrackPerio
               dayKey: day.dayKey
             })
           }
-          onDoubleClick={() => {
-            if (day.isLoggedStart) {
-              onUntrackPeriod({
-                monthKey,
-                dayKey: day.dayKey
-              });
-            }
-          }}
-          title={day.isLoggedStart ? "Double-click to unselect" : "Mark period start"}
+          title={day.isLoggedStart ? "Click to unselect" : "Mark period start"}
         >
           {day.isLoggedStart ? "Started" : "Mark Start"}
         </button>
@@ -169,26 +294,28 @@ function DayCard({ day, trackingEnabled, monthKey, onTrackPeriod, onUntrackPerio
 }
 
 function PakshaSection({
-  title,
+  paksha,
   className,
   days,
+  labelMode,
   trackingEnabled,
+  markDateEnabled,
   monthKey,
-  onTrackPeriod,
-  onUntrackPeriod
+  onTrackPeriod
 }) {
   return (
     <div className="paksha-section">
-      <h2 className={`paksha-title ${className}`}>{title}</h2>
+      <h2 className={`paksha-title ${className}`}>{getPakshaTitle(paksha, labelMode)}</h2>
       <div className="lunar-grid">
         {days.map((day) => (
           <DayCard
             key={day.key}
             day={day}
+            labelMode={labelMode}
             trackingEnabled={trackingEnabled}
+            markDateEnabled={markDateEnabled}
             monthKey={monthKey}
             onTrackPeriod={onTrackPeriod}
-            onUntrackPeriod={onUntrackPeriod}
           />
         ))}
       </div>
@@ -299,7 +426,12 @@ function MainPage() {
   );
   const [periodTracker, setPeriodTracker] = useState(loadPeriodTracker());
   const [theme, setTheme] = useState(safeStorageGet(STORAGE_KEYS.theme) || DEFAULT_THEME);
+  const [labelMode, setLabelMode] = useState(
+    safeStorageGet(STORAGE_KEYS.labelMode) || LABEL_MODES.traditional
+  );
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [markDateEnabled, setMarkDateEnabled] = useState(false);
+  const [trackerError, setTrackerError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -330,6 +462,10 @@ function MainPage() {
     document.body.dataset.theme = theme;
     safeStorageSet(STORAGE_KEYS.theme, theme);
   }, [theme]);
+
+  useEffect(() => {
+    safeStorageSet(STORAGE_KEYS.labelMode, labelMode);
+  }, [labelMode]);
 
   useEffect(() => {
     const config = getLocationConfig(selectedLocation, locationsData);
@@ -375,6 +511,31 @@ function MainPage() {
     ? locationsData[selectedCountry]
     : [];
 
+  useEffect(() => {
+    if (!periodTracker.enabled || calendarData.expectedRecords.length === 0) {
+      return;
+    }
+
+    const savedExpectedRecords = periodTracker.expectedHistory?.[calendarData.monthKey] || [];
+    const hasUnsavedExpected = calendarData.expectedRecords.some(
+      (record) => !savedExpectedRecords.some((saved) => saved.dayKey === record.dayKey)
+    );
+
+    if (!hasUnsavedExpected) {
+      return;
+    }
+
+    const nextTracker = clonePeriodTracker(periodTracker);
+    saveExpectedHistory(nextTracker, calendarData.monthKey, calendarData.expectedRecords);
+    persistPeriodTracker(nextTracker);
+    setPeriodTracker(nextTracker);
+  }, [
+    calendarData.expectedRecords,
+    calendarData.monthKey,
+    periodTracker,
+    periodTracker.enabled
+  ]);
+
   const handleCountryChange = (event) => {
     setSelectedCountry(event.target.value);
   };
@@ -398,19 +559,44 @@ function MainPage() {
     setTheme(event.target.value);
   };
 
+  const handleLabelModeChange = (event) => {
+    setLabelMode(event.target.value);
+  };
+
   const handleTrackingToggle = (event) => {
     const nextTracker = {
       ...clonePeriodTracker(periodTracker),
       enabled: event.target.checked
     };
+    if (!event.target.checked) {
+      setMarkDateEnabled(false);
+      setTrackerError("");
+    }
     persistPeriodTracker(nextTracker);
     setPeriodTracker(nextTracker);
   };
 
   const handleTrackPeriod = ({ monthKey, tithiIndex, tithiName, solarLabel, dayKey }) => {
+    const monthRecords = periodTracker.history[monthKey] || [];
+
+    if (monthRecords.some((record) => record.dayKey === dayKey)) {
+      const nextTracker = clonePeriodTracker(periodTracker);
+      removePeriodStart(nextTracker, monthKey, dayKey);
+      setPeriodTracker(nextTracker);
+      setTrackerError("");
+      return;
+    }
+
+    if (monthRecords.length >= 2) {
+      setTrackerError("You can only mark up to 2 period start dates in one lunar month.");
+      return;
+    }
+
     const nextTracker = clonePeriodTracker(periodTracker);
+    saveExpectedHistory(nextTracker, monthKey, calendarData.expectedRecords);
     savePeriodStart(nextTracker, monthKey, tithiIndex, tithiName, solarLabel, dayKey);
     setPeriodTracker(nextTracker);
+    setTrackerError("");
   };
 
   const handleUntrackPeriod = ({ monthKey, dayKey }) => {
@@ -468,9 +654,6 @@ function MainPage() {
       <header className="hero">
         <p className="hero-kicker">Lunar Rhythm Planner</p>
         <h1>Lunar Calendar</h1>
-        <p className="hero-copy">
-          Center your month around tithi, with solar dates kept quietly in support.
-        </p>
       </header>
 
       <div className="dashboard-layout">
@@ -522,6 +705,16 @@ function MainPage() {
               </select>
             </label>
           </section>
+
+          <section className="control-panel">
+            <label className="theme-control" htmlFor="labelModeSelect">
+              <span>Label Style</span>
+              <select id="labelModeSelect" value={labelMode} onChange={handleLabelModeChange}>
+                <option value={LABEL_MODES.traditional}>Traditional</option>
+                <option value={LABEL_MODES.english}>English</option>
+              </select>
+            </label>
+          </section>
         </aside>
 
         <main className="calendar-stage">
@@ -530,7 +723,10 @@ function MainPage() {
               ◀
             </button>
             <div id="monthYear" className="month-year" aria-live="polite">
-              {calendarData.monthLabel}
+              <span className="month-year-title">{calendarData.monthLabel}</span>
+              {calendarData.monthSubLabel ? (
+                <span className="month-year-range">{calendarData.monthSubLabel}</span>
+              ) : null}
             </div>
             <button id="next" type="button" onClick={handleNextMonth}>
               ▶
@@ -539,20 +735,24 @@ function MainPage() {
 
           <div className="calendar-columns">
             <PakshaSection
-              title="Shukla Paksha 🌔"
+              paksha="Shukla"
               className="shukla"
               days={calendarData.shuklaDays}
+              labelMode={labelMode}
               trackingEnabled={periodTracker.enabled}
+              markDateEnabled={markDateEnabled}
               monthKey={calendarData.monthKey}
               onTrackPeriod={handleTrackPeriod}
               onUntrackPeriod={handleUntrackPeriod}
             />
 
             <PakshaSection
-              title="Krishna Paksha 🌘"
+              paksha="Krishna"
               className="krishna"
               days={calendarData.krishnaDays}
+              labelMode={labelMode}
               trackingEnabled={periodTracker.enabled}
+              markDateEnabled={markDateEnabled}
               monthKey={calendarData.monthKey}
               onTrackPeriod={handleTrackPeriod}
               onUntrackPeriod={handleUntrackPeriod}
@@ -567,9 +767,7 @@ function MainPage() {
                 <p className="panel-label">Cycle Tracking</p>
                 <h2>Period Tracking</h2>
                 <p>
-                  Turn this on to mark the period start when it happens. Your first
-                  saved start becomes the reference automatically, and each newer start
-                  replaces it for future months.
+                  Turn this on to track period starts and expected dates.
                 </p>
               </div>
               <label className="toggle">
@@ -583,16 +781,29 @@ function MainPage() {
               </label>
             </div>
 
-            <div className="tracker-actions">
-              <p className="tracker-hint">
-                Single click to mark a start. Double click a marked start to unselect it.
-              </p>
-            </div>
+            {periodTracker.enabled ? (
+              <>
+                <div className="tracker-actions">
+                  <label className="toggle">
+                    <input
+                      id="markDateToggle"
+                      type="checkbox"
+                      checked={markDateEnabled}
+                      onChange={(event) => setMarkDateEnabled(event.target.checked)}
+                    />
+                    <span className="toggle-label">
+                      {markDateEnabled ? "Mark Date On" : "Mark Date Off"}
+                    </span>
+                  </label>
+                  <p className="tracker-hint">
+                    Turn on Mark Date, then click a calendar day to set the period start.
+                    Click the same marked day again to unselect it.
+                  </p>
+                </div>
 
-            <div id="trackerStatus" className="tracker-status" aria-live="polite">
-              {!periodTracker.enabled ? (
-                <p>Tracking is off. Turn it on to mark the tithi when your period starts.</p>
-              ) : (
+                {trackerError ? <p className="tracker-error">{trackerError}</p> : null}
+
+              <div id="trackerStatus" className="tracker-status" aria-live="polite">
                 <>
                   <p>
                     {calendarData.currentRecords.length > 0 ? (
@@ -600,7 +811,10 @@ function MainPage() {
                         Period starts this month:{" "}
                         <strong>
                           {calendarData.currentRecords
-                            .map((record) => `${record.tithiName} (${record.solarLabel})`)
+                            .map(
+                              (record) =>
+                                `${formatTithiText(record.tithiIndex, record.tithiName, labelMode)} (${record.solarLabel})`
+                            )
                             .join(", ")}
                         </strong>
                         .
@@ -617,7 +831,7 @@ function MainPage() {
                           {calendarData.expectedRecords
                             .map(
                               (record) =>
-                                `${record.tithiName} on ${record.solarLabel} (${record.dayKey})`
+                                `${formatTithiText(record.tithiIndex, record.tithiName, labelMode)} on ${record.solarLabel} (${record.dayKey})`
                             )
                             .join(", ")}
                         </strong>
@@ -628,19 +842,30 @@ function MainPage() {
                     )}
                   </p>
                   <p>
-                    {periodTracker.latestRecord ? (
+                    {periodTracker.latestRecord || periodTracker.referenceRecord ? (
                       <>
-                        Active reference: <strong>{periodTracker.latestRecord.tithiName}</strong>{" "}
-                        on <strong>{periodTracker.latestRecord.solarLabel}</strong>{" "}
-                        ({periodTracker.latestRecord.dayKey}).
+                        Active reference:{" "}
+                        <strong>
+                          {formatTithiText(
+                            (periodTracker.latestRecord || periodTracker.referenceRecord).tithiIndex,
+                            (periodTracker.latestRecord || periodTracker.referenceRecord).tithiName,
+                            labelMode
+                          )}
+                        </strong>{" "}
+                        on{" "}
+                        <strong>
+                          {(periodTracker.latestRecord || periodTracker.referenceRecord).solarLabel}
+                        </strong>{" "}
+                        ({(periodTracker.latestRecord || periodTracker.referenceRecord).dayKey}).
                       </>
                     ) : (
                       "Active reference: not set yet."
                     )}
                   </p>
                 </>
-              )}
-            </div>
+              </div>
+              </>
+            ) : null}
           </section>
 
           <AboutTeaser />

@@ -1,7 +1,23 @@
 import { TITHIS } from "./constants.js";
-import { addLocalDays, getDateFromLocalParts, getDayOfYear } from "./date-utils.js";
+import {
+  addLocalDays,
+  compareLocalDays,
+  getDateFromLocalParts,
+  getDayOfYear,
+  getLocalDateParts
+} from "./date-utils.js";
+import {
+  getNextOverriddenLunarMonthStart,
+  getOverriddenLunarMonthStart
+} from "./lunar-month-overrides.js";
 
 export function findLunarMonthStart(referenceDay, config) {
+  const overriddenStart = getOverriddenLunarMonthStart(referenceDay);
+
+  if (overriddenStart) {
+    return overriddenStart;
+  }
+
   for (let offset = 0; offset <= 35; offset += 1) {
     const candidate = addLocalDays(referenceDay, -offset);
     const candidateTithi = getTithiAtSunrise(candidate, config);
@@ -19,6 +35,12 @@ export function findLunarMonthStart(referenceDay, config) {
 }
 
 export function findNextLunarMonthStart(referenceDay, config) {
+  const overriddenNextStart = getNextOverriddenLunarMonthStart(referenceDay);
+
+  if (overriddenNextStart) {
+    return overriddenNextStart;
+  }
+
   for (let offset = 1; offset <= 35; offset += 1) {
     const candidate = addLocalDays(referenceDay, offset);
     const candidateTithi = getTithiAtSunrise(candidate, config);
@@ -141,8 +163,17 @@ function getSunriseDate(localDay, lat, lon, timeZone) {
   const localMeanTime = localHourAngle + rightAscension - 0.06571 * approximateTime - 6.622;
   const universalTime = normalizeHours(localMeanTime - lngHour);
   const wholeMinutes = Math.round(universalTime * 60);
+  let sunrise = new Date(Date.UTC(localDay.year, localDay.month - 1, localDay.day, 0, wholeMinutes, 0));
+  let sunriseLocalDay = getLocalDateParts(sunrise, timeZone);
+  let dayDifference = compareLocalDays(sunriseLocalDay, localDay);
 
-  return new Date(Date.UTC(localDay.year, localDay.month - 1, localDay.day, 0, wholeMinutes, 0));
+  while (dayDifference !== 0) {
+    sunrise = new Date(sunrise.getTime() - dayDifference);
+    sunriseLocalDay = getLocalDateParts(sunrise, timeZone);
+    dayDifference = compareLocalDays(sunriseLocalDay, localDay);
+  }
+
+  return sunrise;
 }
 
 function getQuadrantCorrection(trueLongitude, rightAscension) {

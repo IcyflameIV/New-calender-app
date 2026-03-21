@@ -25,10 +25,17 @@ export function loadPeriodTracker() {
         Array.isArray(value) ? value : value ? [value] : []
       ])
     );
+    const expectedHistory = Object.fromEntries(
+      Object.entries(parsed.expectedHistory || {}).map(([monthKey, value]) => [
+        monthKey,
+        Array.isArray(value) ? value : value ? [value] : []
+      ])
+    );
     return {
       ...DEFAULT_PERIOD_TRACKER,
       ...parsed,
-      history
+      history,
+      expectedHistory
     };
   } catch (error) {
     console.error("Unable to parse period tracker data:", error);
@@ -42,9 +49,16 @@ export function persistPeriodTracker(periodTracker) {
 }
 
 export function getExpectedRecordsForMonth(periodTracker, monthStart, monthEnd, config) {
-  const basis = periodTracker.latestRecord;
+  const basis = periodTracker.latestRecord || periodTracker.referenceRecord;
 
   if (!basis?.tithiIndex) {
+    return [];
+  }
+
+  const viewedMonthKey = getLocalDayKey(monthStart);
+
+  // Expected dates only belong to lunar months after the marked period-start month.
+  if (viewedMonthKey <= basis.monthKey) {
     return [];
   }
 
@@ -99,6 +113,24 @@ export function savePeriodStart(periodTracker, monthKey, tithiIndex, tithiName, 
   persistPeriodTracker(periodTracker);
 }
 
+export function saveExpectedHistory(periodTracker, monthKey, expectedRecords) {
+  if (!expectedRecords?.length) {
+    return;
+  }
+
+  const currentHistory = periodTracker.expectedHistory[monthKey] || [];
+  const merged = [...currentHistory];
+
+  expectedRecords.forEach((record) => {
+    if (!merged.some((entry) => entry.dayKey === record.dayKey)) {
+      merged.push(record);
+    }
+  });
+
+  merged.sort((left, right) => left.dayKey.localeCompare(right.dayKey));
+  periodTracker.expectedHistory[monthKey] = merged;
+}
+
 export function removePeriodStart(periodTracker, monthKey, dayKey) {
   const monthHistory = (periodTracker.history[monthKey] || []).filter(
     (entry) => entry.dayKey !== dayKey
@@ -111,6 +143,28 @@ export function removePeriodStart(periodTracker, monthKey, dayKey) {
   }
 
   periodTracker.latestRecord = getLatestRecord(periodTracker.history);
+  persistPeriodTracker(periodTracker);
+}
+
+export function saveReferenceRecord(
+  periodTracker,
+  monthKey,
+  dayKey,
+  solarLabel,
+  tithiIndex,
+  tithiName
+) {
+  if (!dayKey || !tithiIndex) {
+    return;
+  }
+
+  periodTracker.referenceRecord = {
+    monthKey,
+    dayKey,
+    solarLabel,
+    tithiIndex,
+    tithiName
+  };
   persistPeriodTracker(periodTracker);
 }
 

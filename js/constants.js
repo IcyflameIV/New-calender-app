@@ -74,7 +74,8 @@ export const DEFAULT_LOCATION = {
 export const STORAGE_KEYS = {
   location: "userLocation",
   periodTracker: "periodTracker",
-  theme: "uiTheme"
+  theme: "uiTheme",
+  labelMode: "labelMode"
 };
 
 export const DEFAULT_THEME = "soft-romantic";
@@ -82,5 +83,6 @@ export const DEFAULT_THEME = "soft-romantic";
 export const DEFAULT_PERIOD_TRACKER = {
   enabled: false,
   latestRecord: null,
-  history: {}
+  history: {},
+  expectedHistory: {}
 };
