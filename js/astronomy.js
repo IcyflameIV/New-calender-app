@@ -6,18 +6,8 @@ import {
   getDayOfYear,
   getLocalDateParts
 } from "./date-utils.js";
-import {
-  getNextOverriddenLunarMonthStart,
-  getOverriddenLunarMonthStart
-} from "./lunar-month-overrides.js";
 
 export function findLunarMonthStart(referenceDay, config) {
-  const overriddenStart = getOverriddenLunarMonthStart(referenceDay);
-
-  if (overriddenStart) {
-    return overriddenStart;
-  }
-
   for (let offset = 0; offset <= 35; offset += 1) {
     const candidate = addLocalDays(referenceDay, -offset);
     const candidateTithi = getTithiAtSunrise(candidate, config);
@@ -35,12 +25,6 @@ export function findLunarMonthStart(referenceDay, config) {
 }
 
 export function findNextLunarMonthStart(referenceDay, config) {
-  const overriddenNextStart = getNextOverriddenLunarMonthStart(referenceDay);
-
-  if (overriddenNextStart) {
-    return overriddenNextStart;
-  }
-
   for (let offset = 1; offset <= 35; offset += 1) {
     const candidate = addLocalDays(referenceDay, offset);
     const candidateTithi = getTithiAtSunrise(candidate, config);

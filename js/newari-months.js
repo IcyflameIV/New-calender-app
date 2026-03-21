@@ -4,10 +4,6 @@ import {
   getLocalDayKey
 } from "./date-utils.js";
 import {
-  getNextOverriddenLunarMonthStart,
-  getOverriddenLunarMonthStart
-} from "./lunar-month-overrides.js";
-import {
   findLunarMonthStart,
   findNextLunarMonthStart
 } from "./astronomy.js";

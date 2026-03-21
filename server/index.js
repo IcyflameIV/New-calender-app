@@ -58,9 +58,15 @@ const server = http.createServer(async (request, response) => {
   const requestPath = requestUrl.pathname === "/" ? "index.html" : requestUrl.pathname.slice(1);
   const safePath = path.normalize(requestPath).replace(/^(\.\.[/\\])+/, "");
   const filePath = path.join(distDir, safePath);
-  const extension = path.extname(filePath).toLowerCase();
+  const isAssetRequest = path.extname(filePath).length > 0;
   const streamPath = existsSync(filePath) ? filePath : path.join(distDir, "index.html");
   const streamExtension = path.extname(streamPath).toLowerCase();
+
+  if (!existsSync(filePath) && isAssetRequest) {
+    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Not found");
+    return;
+  }
 
   response.writeHead(200, {
     "Content-Type": mimeTypes[streamExtension] || "application/octet-stream"

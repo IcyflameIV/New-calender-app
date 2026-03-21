@@ -96,7 +96,9 @@ body[data-theme="soft-romantic"] {
 
 body[data-theme="soft-romantic"]::after {
   opacity: 0.18;
-  background-image: url("./assets/soft-romantic.avif");
+  background-image:
+    linear-gradient(180deg, rgba(250, 237, 232, 0.52), rgba(244, 227, 220, 0.42)),
+    url("./src/assets/soft-romantic.avif");
   filter: blur(4px) saturate(0.88);
   transform: scale(1.04);
 }
@@ -143,7 +145,9 @@ body[data-theme="natural-whimsical"] {
 
 body[data-theme="natural-whimsical"]::after {
   opacity: 0.24;
-  background-image: url("./assets/WHIMSICAL.webp");
+  background-image:
+    linear-gradient(180deg, rgba(242, 235, 220, 0.44), rgba(232, 224, 204, 0.34)),
+    url("./src/assets/whimsical.webp");
   filter: blur(3px) saturate(0.86) brightness(1.03);
   transform: scale(1.05);
 }
@@ -230,7 +234,9 @@ body[data-theme="dark-feminine"] {
 
 body[data-theme="dark-feminine"]::after {
   opacity: 0.24;
-  background-image: url("./assets/dark-feminine.avif");
+  background-image:
+    linear-gradient(180deg, rgba(24, 21, 30, 0.5), rgba(17, 15, 22, 0.54)),
+    url("./src/assets/dark-feminine.avif");
   filter: blur(3px) saturate(0.9) brightness(0.8);
   transform: scale(1.05);
 }

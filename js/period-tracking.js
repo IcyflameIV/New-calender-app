@@ -1,14 +1,30 @@
 import {
+  TITHIS,
   DEFAULT_PERIOD_TRACKER,
   STORAGE_KEYS
 } from "./constants.js";
-import { addLocalDays, getLocalDayKey } from "./date-utils.js";
-import { getTithiAtSunrise } from "./astronomy.js";
+import { addLocalDays, getLocalDayKey, parseLocalDayKey } from "./date-utils.js";
+import {
+  findNextLunarMonthStart,
+  getTithiAtSunrise
+} from "./astronomy.js";
 import {
   safeStorageGet,
   safeStorageRemove,
   safeStorageSet
 } from "./storage.js";
+
+function normalizeExpectedRecords(value) {
+  const records = Array.isArray(value) ? value : value ? [value] : [];
+
+  if (records.length === 0) {
+    return [];
+  }
+
+  return [...records]
+    .sort((left, right) => left.dayKey.localeCompare(right.dayKey))
+    .slice(-1);
+}
 
 export function loadPeriodTracker() {
   const savedTracker = safeStorageGet(STORAGE_KEYS.periodTracker);
@@ -28,7 +44,7 @@ export function loadPeriodTracker() {
     const expectedHistory = Object.fromEntries(
       Object.entries(parsed.expectedHistory || {}).map(([monthKey, value]) => [
         monthKey,
-        Array.isArray(value) ? value : value ? [value] : []
+        normalizeExpectedRecords(value)
       ])
     );
     return {
@@ -48,20 +64,12 @@ export function persistPeriodTracker(periodTracker) {
   safeStorageSet(STORAGE_KEYS.periodTracker, JSON.stringify(periodTracker));
 }
 
-export function getExpectedRecordsForMonth(periodTracker, monthStart, monthEnd, config) {
-  const basis = periodTracker.latestRecord || periodTracker.referenceRecord;
+export function clearPeriodTracker() {
+  safeStorageRemove(STORAGE_KEYS.periodTracker);
+}
 
-  if (!basis?.tithiIndex) {
-    return [];
-  }
-
-  const viewedMonthKey = getLocalDayKey(monthStart);
-
-  // Expected dates only belong to lunar months after the marked period-start month.
-  if (viewedMonthKey <= basis.monthKey) {
-    return [];
-  }
-
+function projectExpectedRecordForMonth(basis, monthStart, monthEnd, config) {
+  const fallbackTithiIndex = basis.tithiIndex === 1 ? 2 : basis.tithiIndex - 1;
   let fallbackRecord = null;
 
   for (let offset = 0; ; offset += 1) {
@@ -75,25 +83,75 @@ export function getExpectedRecordsForMonth(periodTracker, monthStart, monthEnd, 
     const tithi = getTithiAtSunrise(localDay, config);
 
     if (tithi.index === basis.tithiIndex) {
-      return [{
+      return {
+        monthKey: getLocalDayKey(monthStart),
         dayKey: getLocalDayKey(localDay),
-        tithiIndex: tithi.index,
-        tithiName: tithi.name,
-        source: "latest"
-      }];
-    }
-
-    if (!fallbackRecord && tithi.index > basis.tithiIndex) {
-      fallbackRecord = {
-        dayKey: getLocalDayKey(localDay),
+        solarLabel: "",
         tithiIndex: tithi.index,
         tithiName: tithi.name,
         source: "latest"
       };
     }
+
+    if (!fallbackRecord && tithi.index === fallbackTithiIndex) {
+      fallbackRecord = {
+        monthKey: getLocalDayKey(monthStart),
+        dayKey: getLocalDayKey(localDay),
+        solarLabel: "",
+        tithiIndex: tithi.index,
+        tithiName: tithi.name,
+        source: "previous-tithi-fallback",
+        nextBasisTithiIndex: basis.tithiIndex === 1 ? 1 : tithi.index,
+        nextBasisTithiName: basis.tithiIndex === 1 ? TITHIS[0] : tithi.name
+      };
+    }
   }
 
-  return fallbackRecord ? [fallbackRecord] : [];
+  return fallbackRecord;
+}
+
+export function getExpectedRecordsForMonth(periodTracker, monthStart, monthEnd, config) {
+  const viewedMonthKey = getLocalDayKey(monthStart);
+  let basis = periodTracker.latestRecord;
+
+  if (!basis?.tithiIndex) {
+    return [];
+  }
+
+  if (viewedMonthKey <= basis.monthKey) {
+    return [];
+  }
+
+  let cursorMonthStart = parseLocalDayKey(basis.monthKey);
+  while (getLocalDayKey(cursorMonthStart) < viewedMonthKey) {
+    const projectedMonthStart = findNextLunarMonthStart(cursorMonthStart, config);
+    const followingMonthStart = findNextLunarMonthStart(projectedMonthStart, config);
+    const projectedMonthEnd = addLocalDays(followingMonthStart, -1);
+    const expectedRecord = projectExpectedRecordForMonth(
+      basis,
+      projectedMonthStart,
+      projectedMonthEnd,
+      config
+    );
+    const projectedMonthKey = getLocalDayKey(projectedMonthStart);
+
+    if (projectedMonthKey === viewedMonthKey) {
+      return expectedRecord ? [expectedRecord] : [];
+    }
+
+    if (expectedRecord) {
+      basis = {
+        ...expectedRecord,
+        tithiIndex: expectedRecord.nextBasisTithiIndex || expectedRecord.tithiIndex,
+        tithiName: expectedRecord.nextBasisTithiName || expectedRecord.tithiName
+      };
+      cursorMonthStart = projectedMonthStart;
+    } else {
+      cursorMonthStart = projectedMonthStart;
+    }
+  }
+
+  return [];
 }
 
 export function savePeriodStart(periodTracker, monthKey, tithiIndex, tithiName, solarLabel, dayKey) {
@@ -115,20 +173,11 @@ export function savePeriodStart(periodTracker, monthKey, tithiIndex, tithiName, 
 
 export function saveExpectedHistory(periodTracker, monthKey, expectedRecords) {
   if (!expectedRecords?.length) {
+    delete periodTracker.expectedHistory[monthKey];
     return;
   }
 
-  const currentHistory = periodTracker.expectedHistory[monthKey] || [];
-  const merged = [...currentHistory];
-
-  expectedRecords.forEach((record) => {
-    if (!merged.some((entry) => entry.dayKey === record.dayKey)) {
-      merged.push(record);
-    }
-  });
-
-  merged.sort((left, right) => left.dayKey.localeCompare(right.dayKey));
-  periodTracker.expectedHistory[monthKey] = merged;
+  periodTracker.expectedHistory[monthKey] = normalizeExpectedRecords(expectedRecords);
 }
 
 export function removePeriodStart(periodTracker, monthKey, dayKey) {
@@ -143,28 +192,6 @@ export function removePeriodStart(periodTracker, monthKey, dayKey) {
   }
 
   periodTracker.latestRecord = getLatestRecord(periodTracker.history);
-  persistPeriodTracker(periodTracker);
-}
-
-export function saveReferenceRecord(
-  periodTracker,
-  monthKey,
-  dayKey,
-  solarLabel,
-  tithiIndex,
-  tithiName
-) {
-  if (!dayKey || !tithiIndex) {
-    return;
-  }
-
-  periodTracker.referenceRecord = {
-    monthKey,
-    dayKey,
-    solarLabel,
-    tithiIndex,
-    tithiName
-  };
   persistPeriodTracker(periodTracker);
 }
 

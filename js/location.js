@@ -10,6 +10,16 @@ import {
   safeStorageSet
 } from "./storage.js";
 
+function isValidLocation(value) {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    typeof value.name === "string" &&
+    Number.isFinite(value.lat) &&
+    Number.isFinite(value.lon)
+  );
+}
+
 export function loadSavedLocation() {
   const savedLocation = safeStorageGet(STORAGE_KEYS.location);
 
@@ -18,7 +28,14 @@ export function loadSavedLocation() {
   }
 
   try {
-    return JSON.parse(savedLocation);
+    const parsed = JSON.parse(savedLocation);
+
+    if (!isValidLocation(parsed)) {
+      safeStorageRemove(STORAGE_KEYS.location);
+      return null;
+    }
+
+    return parsed;
   } catch (error) {
     console.error("Unable to parse saved location:", error);
     safeStorageRemove(STORAGE_KEYS.location);
@@ -35,7 +52,7 @@ export function clearSavedLocation() {
 }
 
 export function getLocationConfig(location, locationsData) {
-  const resolvedLocation = location || DEFAULT_LOCATION;
+  const resolvedLocation = isValidLocation(location) ? location : DEFAULT_LOCATION;
   const country =
     resolvedLocation.country ||
     findCountryByCity(resolvedLocation.name, locationsData) ||
@@ -59,55 +76,12 @@ export function findCountryByCity(cityName, locationsData) {
   )?.[0];
 }
 
-export function populateCountries(countrySelect, locationsData) {
-  Object.keys(locationsData).forEach((country) => {
-    const option = document.createElement("option");
-    option.value = country;
-    option.textContent = country;
-    countrySelect.appendChild(option);
-  });
-}
-
-export function populateCities(citySelect, selectedCountry, locationsData) {
-  citySelect.innerHTML = '<option value="">Select City</option>';
-
-  if (!selectedCountry || !locationsData[selectedCountry]) {
-    citySelect.disabled = true;
-    return;
-  }
-
-  locationsData[selectedCountry].forEach((city) => {
-    const option = document.createElement("option");
-    option.value = JSON.stringify({ ...city, country: selectedCountry });
-    option.textContent = city.name;
-    citySelect.appendChild(option);
-  });
-
-  citySelect.disabled = false;
-}
-
-export function restoreSavedLocation(countrySelect, citySelect, selectedLocation, locationsData) {
-  if (!selectedLocation) {
-    return;
-  }
-
-  const country = selectedLocation.country || findCountryByCity(selectedLocation.name, locationsData);
-
-  if (!country) {
-    return;
-  }
-
-  countrySelect.value = country;
-  populateCities(citySelect, country, locationsData);
-  citySelect.value = JSON.stringify({
-    name: selectedLocation.name,
-    lat: selectedLocation.lat,
-    lon: selectedLocation.lon,
-    country
-  });
-}
-
 export async function loadLocationsData() {
   const response = await fetch("/api/locations");
+
+  if (!response.ok) {
+    throw new Error(`Unable to load locations: ${response.status} ${response.statusText}`);
+  }
+
   return response.json();
 }
