@@ -4,6 +4,7 @@ import {
   DEFAULT_LOCATION,
   STORAGE_KEYS
 } from "./constants.js";
+import locationsData from "../locations.json";
 import {
   safeStorageGet,
   safeStorageRemove,
@@ -77,11 +78,5 @@ export function findCountryByCity(cityName, locationsData) {
 }
 
 export async function loadLocationsData() {
-  const response = await fetch("/api/locations");
-
-  if (!response.ok) {
-    throw new Error(`Unable to load locations: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
+  return locationsData;
 }
