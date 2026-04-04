@@ -1,5 +1,6 @@
 import {
   addLocalDays,
+  compareLocalDays,
   formatLunarMonthLabel,
   getLocalDayKey
 } from "./date-utils.js";
@@ -9,6 +10,8 @@ import {
 } from "./astronomy.js";
 
 const CYCLE_ANCHOR = { year: 2025, month: 10, day: 22 };
+const LEAP_CYCLE_ANCHOR = { year: 2026, month: 6, day: 16 };
+const LEAP_MONTH_INTERVAL = 36;
 const ENGLISH_MONTH_TITLES = [
   "The first month",
   "The month of bright sky",
@@ -23,10 +26,7 @@ const ENGLISH_MONTH_TITLES = [
   "The month of harvest",
   "The month of autumn"
 ];
-
-const LEAP_MONTH_TITLES = {
-  "2026-06-16": "The leap month"
-};
+const LEAP_MONTH_TITLE = "The leap month";
 
 const sequenceCache = new Map();
 
@@ -38,53 +38,114 @@ export function getMonthHeader(startDay, endDay, timeZone, config) {
 }
 
 function getTranslatedMonthTitle(startDay, config) {
-  const startKey = getLocalDayKey(startDay);
-  const sequence = getMonthSequence(config);
-
-  return sequence.get(startKey) || formatFallbackTitle(startDay);
+  const sequenceState = getMonthSequenceState(config);
+  ensureSequenceIncludes(sequenceState, startDay, config);
+  return sequenceState.titles.get(getLocalDayKey(startDay)) || formatFallbackTitle(startDay);
 }
 
-function getMonthSequence(config) {
+function getMonthSequenceState(config) {
   const cacheKey = `${config.lat}|${config.lon}|${config.timeZone}`;
 
   if (sequenceCache.has(cacheKey)) {
     return sequenceCache.get(cacheKey);
   }
 
-  const sequence = new Map();
+  const leapAnchorStep = getStepBetweenMonthStarts(CYCLE_ANCHOR, LEAP_CYCLE_ANCHOR, config);
+  const initialState = {
+    titles: new Map([[getLocalDayKey(CYCLE_ANCHOR), ENGLISH_MONTH_TITLES[0]]]),
+    earliestStart: CYCLE_ANCHOR,
+    latestStart: CYCLE_ANCHOR,
+    earliestStep: 0,
+    latestStep: 0,
+    earliestTitleIndex: 0,
+    latestTitleIndex: 0,
+    leapAnchorStep
+  };
 
-  sequence.set(getLocalDayKey(CYCLE_ANCHOR), ENGLISH_MONTH_TITLES[0]);
+  sequenceCache.set(cacheKey, initialState);
+  return initialState;
+}
 
-  let backwardStart = CYCLE_ANCHOR;
-  let backwardIndex = 0;
-
-  for (let step = 0; step < 24; step += 1) {
-    const previousStart = findLunarMonthStart(addLocalDays(backwardStart, -1), config);
-    backwardIndex =
-      (backwardIndex - 1 + ENGLISH_MONTH_TITLES.length) % ENGLISH_MONTH_TITLES.length;
-    sequence.set(getLocalDayKey(previousStart), ENGLISH_MONTH_TITLES[backwardIndex]);
-    backwardStart = previousStart;
+function ensureSequenceIncludes(sequenceState, targetStart, config) {
+  while (compareLocalDays(targetStart, sequenceState.earliestStart) < 0) {
+    extendSequenceBackward(sequenceState, config);
   }
 
-  let forwardStart = CYCLE_ANCHOR;
-  let forwardIndex = 0;
+  while (compareLocalDays(targetStart, sequenceState.latestStart) > 0) {
+    extendSequenceForward(sequenceState, config);
+  }
+}
 
-  for (let step = 0; step < 72; step += 1) {
-    const nextStart = findNextLunarMonthStart(forwardStart, config);
-    const nextKey = getLocalDayKey(nextStart);
+function extendSequenceBackward(sequenceState, config) {
+  const previousStart = findLunarMonthStart(addLocalDays(sequenceState.earliestStart, -1), config);
+  const previousStep = sequenceState.earliestStep - 1;
+  const isLeapMonth = isLeapStep(previousStep, sequenceState.leapAnchorStep);
+  const previousTitleIndex = isLeapMonth
+    ? sequenceState.earliestTitleIndex
+    : (sequenceState.earliestTitleIndex - 1 + ENGLISH_MONTH_TITLES.length) % ENGLISH_MONTH_TITLES.length;
 
-    if (LEAP_MONTH_TITLES[nextKey]) {
-      sequence.set(nextKey, LEAP_MONTH_TITLES[nextKey]);
-    } else {
-      forwardIndex = (forwardIndex + 1) % ENGLISH_MONTH_TITLES.length;
-      sequence.set(nextKey, ENGLISH_MONTH_TITLES[forwardIndex]);
+  sequenceState.titles.set(
+    getLocalDayKey(previousStart),
+    isLeapMonth ? LEAP_MONTH_TITLE : ENGLISH_MONTH_TITLES[previousTitleIndex]
+  );
+  sequenceState.earliestStart = previousStart;
+  sequenceState.earliestStep = previousStep;
+  sequenceState.earliestTitleIndex = previousTitleIndex;
+}
+
+function extendSequenceForward(sequenceState, config) {
+  const nextStart = findNextLunarMonthStart(sequenceState.latestStart, config);
+  const nextStep = sequenceState.latestStep + 1;
+  const isLeapMonth = isLeapStep(nextStep, sequenceState.leapAnchorStep);
+  const nextTitleIndex = isLeapMonth
+    ? sequenceState.latestTitleIndex
+    : (sequenceState.latestTitleIndex + 1) % ENGLISH_MONTH_TITLES.length;
+
+  sequenceState.titles.set(
+    getLocalDayKey(nextStart),
+    isLeapMonth ? LEAP_MONTH_TITLE : ENGLISH_MONTH_TITLES[nextTitleIndex]
+  );
+  sequenceState.latestStart = nextStart;
+  sequenceState.latestStep = nextStep;
+  sequenceState.latestTitleIndex = nextTitleIndex;
+}
+
+function getStepBetweenMonthStarts(fromStart, targetStart, config) {
+  if (getLocalDayKey(fromStart) === getLocalDayKey(targetStart)) {
+    return 0;
+  }
+
+  if (compareLocalDays(targetStart, fromStart) > 0) {
+    let step = 0;
+    let currentStart = fromStart;
+
+    while (step < 240) {
+      step += 1;
+      currentStart = findNextLunarMonthStart(currentStart, config);
+
+      if (getLocalDayKey(currentStart) === getLocalDayKey(targetStart)) {
+        return step;
+      }
     }
+  } else {
+    let step = 0;
+    let currentStart = fromStart;
 
-    forwardStart = nextStart;
+    while (step < 240) {
+      step -= 1;
+      currentStart = findLunarMonthStart(addLocalDays(currentStart, -1), config);
+
+      if (getLocalDayKey(currentStart) === getLocalDayKey(targetStart)) {
+        return step;
+      }
+    }
   }
 
-  sequenceCache.set(cacheKey, sequence);
-  return sequence;
+  return 0;
+}
+
+function isLeapStep(step, leapAnchorStep) {
+  return (step - leapAnchorStep) % LEAP_MONTH_INTERVAL === 0;
 }
 
 function formatFallbackTitle(startDay) {

@@ -157,15 +157,15 @@ body[data-theme="clean-minimal"] {
   --page-ink: #2b2b2b;
   --muted-ink: rgba(43, 43, 43, 0.66);
   --panel-bg: rgba(255, 255, 255, 0.96);
-  --panel-border: rgba(0, 0, 0, 0.03);
+  --panel-border: rgba(0, 0, 0, 0.08);
   --panel-shadow: 0 34px 60px rgba(73, 62, 51, 0.05);
   --card-bg: rgba(255, 255, 255, 0.98);
-  --card-border: rgba(0, 0, 0, 0.03);
+  --card-border: rgba(0, 0, 0, 0.08);
   --card-shadow: 0 28px 46px rgba(73, 62, 51, 0.045);
   --card-radius: 22px;
   --card-hover-shadow: 0 32px 54px rgba(73, 62, 51, 0.07);
   --button-bg: #ffffff;
-  --button-border: rgba(0, 0, 0, 0.04);
+  --button-border: rgba(0, 0, 0, 0.09);
   --button-shadow: 0 20px 40px rgba(73, 62, 51, 0.04);
   --button-text: #574d45;
   --accent: #e9dfd2;
@@ -189,7 +189,7 @@ body[data-theme="clean-minimal"] {
   --float-decoration: none;
   --paksha-outline-style: solid;
   --paksha-outline-width: 1px;
-  --paksha-outline-color: rgba(0, 0, 0, 0.03);
+  --paksha-outline-color: rgba(0, 0, 0, 0.08);
 }
 
 body[data-theme="dark-feminine"] {
@@ -246,6 +246,39 @@ body[data-theme="dark-feminine"]::after {
   gap: 8px;
   text-align: center;
   justify-items: center;
+}
+
+.support-link {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  margin-top: 8px;
+  padding: 10px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--button-border);
+  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  color: var(--muted-ink);
+  box-shadow: var(--button-shadow);
+  text-decoration: none;
+  transition: transform 0.35s ease, box-shadow 0.35s ease, color 0.3s ease;
+}
+
+.support-link:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-hover-shadow);
+  color: var(--page-ink);
+}
+
+.support-link-label {
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.support-link-action {
+  font-family: var(--body-font);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--button-text);
 }
 
 .hero-kicker,
@@ -341,11 +374,14 @@ h1::before {
 .dashboard-layout {
   display: grid;
   gap: 20px;
+  width: 100%;
+  justify-self: center;
 }
 
 .about-page {
-  display: grid;
-  gap: 20px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .about-card {
@@ -354,6 +390,8 @@ h1::before {
   background: var(--panel-bg);
   border-radius: 28px;
   padding: 24px;
+  width: min(100%, 70rem);
+  margin: 0 auto;
 }
 
 .about-card h2 {
@@ -837,43 +875,9 @@ body[data-theme="clean-minimal"] .weekday-label {
   .calendar-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .about-page {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
-@media (min-width: 1040px) {
-  .dashboard-layout {
-    grid-template-columns: minmax(200px, 240px) minmax(0, 1.5fr) minmax(220px, 260px);
-    align-items: start;
-  }
-
-  .calendar-stage {
-    min-height: 100%;
-  }
-}
-
-@media (max-width: 1279px) {
-  #root {
-    max-width: 1240px;
-  }
-
-  .dashboard-layout {
-    grid-template-columns: minmax(170px, 210px) minmax(0, 1.8fr) minmax(190px, 220px);
-    align-items: start;
-  }
-
-  .control-panel,
-  .info-panel,
-  .tracker-panel,
-  .calendar-stage {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-}
-
-@media (max-width: 1110px) {
+@media (min-width: 1024px) {
   .dashboard-layout {
     grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
     align-items: start;
@@ -892,11 +896,35 @@ body[data-theme="clean-minimal"] .weekday-label {
     grid-column: 1;
     grid-row: 1 / span 2;
   }
+
+  .control-panel,
+  .info-panel,
+  .tracker-panel,
+  .calendar-stage {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }
 
-@media (max-width: 900px) {
+@media (min-width: 1280px) {
+  #root {
+    max-width: 1520px;
+  }
+
   .dashboard-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(200px, 240px) minmax(0, 1.5fr) minmax(220px, 260px);
+    align-items: start;
+  }
+
+  .side-panel-left,
+  .side-panel-right,
+  .calendar-stage {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .calendar-stage {
+    min-height: 100%;
   }
 }
 
@@ -905,13 +933,18 @@ body[data-theme="clean-minimal"] .weekday-label {
     padding-top: 18px;
   }
 
+  .support-link {
+    width: min(100%, 19rem);
+  }
+
   .tracker-head {
     flex-direction: column;
   }
 
   #countrySelect,
   #citySelect,
-  #themeSelect {
+  #themeSelect,
+  #labelModeSelect {
     max-width: none;
   }
 

@@ -15,4 +15,4 @@ React frontend plus a small Node server for the locations API.
 - `src/` React UI
 - `server/` Node API and static build server
 - `js/` shared tithi, date, location, and period-tracking logic
-- `assets/` theme background images
+- `src/assets/` theme background images

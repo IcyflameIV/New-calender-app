@@ -44,6 +44,16 @@ export default function MainPage() {
       <header className="hero">
         <p className="hero-kicker">Lunar Rhythm Planner</p>
         <h1>Lunar Calendar</h1>
+        <a
+          className="support-link"
+          href="https://buymemomo.com/Icyflame"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Support this project on Buy Me Momo"
+        >
+          <span className="support-link-label">Want to support this project?</span>
+          <span className="support-link-action">Buy me a momo</span>
+        </a>
       </header>
 
       <div className="dashboard-layout">
