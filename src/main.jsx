@@ -1,4 +1,5 @@
 import React from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { createRoot } from "react-dom/client";
 import "../style.css";
 import App from "./App.jsx";
@@ -18,6 +19,7 @@ createRoot(rootElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
+      <Analytics />
     </ErrorBoundary>
   </React.StrictMode>
 );
